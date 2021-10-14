@@ -1,23 +1,22 @@
 DebugPosY = 76 ;76 affiche OK, 77 aff KO
 
 ;Comment/uncomment to unactivate/activate
-DEBUGDISPLAY_TIME = 0		;=0	;COUT=2 HBL	;affiche le compteur de rater
+DEBUGDISPLAY_TIME = 1		;=0	;COUT=2 HBL	;affiche le compteur de rater
 DEBUGDISPLAY_RASTER	= 0 	;affiche la couleur raster rouge/vert
 CTR=1					;count waitblit and put value in CTRWAIT:
 
 ;	incdir	"sources:sinescroll/"
 
 
-; IFC Conditional Assembly String Equality Test.
-; IFDEF Conditional Assembly Symbol Definition Test.
-; IFEQ Conditional Assembly Equal to Zero Test.
-; IFGE Conditional Assembly Nonnegative Test.
-; IFGT Conditional Assembly Greater than Zero Test.
-; IFLE Conditional Assembly Nonpositive Test.
-; IFLT Conditional Assembly Less than Zero Test.
-; IFNC Conditional Assembly String Inequality Test.
-; IFNDEF Conditional Assembly Symbol Not Defined Test.
-; IFNE Conditional Assembly Unequal to Zero Test. 
+; CMP A,B 	Entier (signé) 	Naturel(non signé)
+; A >  B 		BLT 	BLO (ou BCS)
+; A >= B 		BLE 	BLS
+; A =  B 		BEQ 	BEQ
+; A <> B 		BNE 	BNE
+; A <  B 		BGT 	BHI
+; A <= B 		BGE 	BHS (ou BCC)
+
+
 
 ;References :
 ;Reprise architecture de Yragael / Stash of Code (http://www.stashofcode.fr)
@@ -235,6 +234,8 @@ _waitVBL:
 	cmp.w #DISPLAY_Y+DISPLAY_DY,d0
 	blt.s _waitVBL
 	
+	
+	
 	IFNE DEBUGDISPLAY_RASTER
 	move.w #$0F00,COLOR00(a5)	;si DEBUG on passe en rouge la couleur du fond
 	ENDC
@@ -252,13 +253,7 @@ _waitVBL:
 
 
 
-; CMP A,B 	Entier (signé) 	Naturel(non signé)
-; A >  B 		BLT 	BLO (ou BCS)
-; A >= B 		BLE 	BLS
-; A =  B 		BEQ 	BEQ
-; A <> B 		BNE 	BNE
-; A <  B 		BGT 	BHI
-; A <= B 		BGE 	BHS (ou BCC)
+
 
 
 ;----- Incremente Position affichage
