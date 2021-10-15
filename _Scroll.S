@@ -1,4 +1,7 @@
-DebugPosY = 76 ;76 affiche OK, 77 aff KO
+
+CST.Scroll.PasAPas = 1 		;step by step
+CST.Scroll.PosYInit = 70	;starting position
+CST.Scroll.Sens = 1 		;0 bas, 1 haut
 
 ;Comment/uncomment to unactivate/activate
 DEBUGDISPLAY_TIME = 1		;=0	;COUT=2 HBL	;affiche le compteur de rater
@@ -15,6 +18,15 @@ CTR=1					;count waitblit and put value in CTRWAIT:
 ; A <> B 		BNE 	BNE
 ; A <  B 		BGT 	BHI
 ; A <= B 		BGE 	BHS (ou BCC)
+
+; CONDITION D ASSEMBLAGE
+; IFEQ Assemble if expression = zero 
+; IFNE Assemble if expression <> zero 
+; IFGT Assemble if expression > zero 
+; 1FGE Assemble if expression >= zero 
+; IFLT Assemble if expression < zero 
+; IFLE Assemble if expression <= zero 
+; ENDC
 
 
 
@@ -254,36 +266,17 @@ _waitVBL:
 
 
 
+	IFEQ CST.Scroll.PasAPas
+	bsr IncrementerPosYScrolling ;modifie AffLigneY
+	ENDC
 
 
-;----- Incremente Position affichage
-	moveq.l	#0,d1
-	move.w	AffLigneY,d1
-	bra Calcul_sens_haut
 	
-Calcul_sens_bas:
-	;--- Sens descente
-	subq	#1,d1
-	bne		.pasFin	;tester si <0
-	move.w	#BITPLANE_DY,d1
-.pasFin:
-	bra 	fin_calcul_sens
-		
-Calcul_sens_haut:
-	;--- Sens montée 
-	addq	#1,d1
-	cmp.w	#BITPLANE_DY,d1
-	bls		.pasFin
-	moveq.l	#0,d1
-.pasFin:
-
 	
-fin_calcul_sens:
 	
-	;move.w	#DebugPosY,d1 ;DEBUG fixe ecran ----------------------------
-	move.w	d1,AffLigneY
 	
 ;----- Calcul Position affichage
+	move.w	AffLigneY,d1
 	;d1 = d0 + AffLigneY * (BITPLANE_DX / 8)
 	mulu	#BITPLANE_DX>>3,d1
 	add.l	d0,d1
@@ -335,6 +328,8 @@ aff:
 	
 	cmp.w	#DISPLAY_DY,d1 	;256,d1
 	blo		.EcranTronque	;si d1 < DISPLAY_Y (non signé)
+							; A >  B 		BLT 	BLO (ou BCS)
+							; A >= B 		BLE 	BLS
 	
 	;pas trounqué
 	;moveq.l	#$00,d1	;$00E1,$FFFE
@@ -352,10 +347,10 @@ aff:
 	add.w	#DISPLAY_Y,d1
 	move.w	d1,Debug2	;***************************** DEBUG
 	
-	cmp.w	#255,d1	;on depasse les 255
-	blo		.pasWait
+	cmp.w	#255,d1	;on depasse ou atteint les 255
+	bls		.pasWait
 		;mettre un wait 255
-		move.l	#$FFE1FFFE,(A0)+	;Copper NOP
+		move.l	#$FFE1FFFE,(A0)+	;Copper WAIT 255
 		sub.w	#$FF+1,d1
 
 		bra		.FinWait
@@ -431,9 +426,18 @@ sauteDebug:
 	
 	
 	
+;--- AFFICHER LA POSITION SCROLLING
+	movea.l	bitplaneB(pc),a1
+	lea 	48*(DISPLAY_DX>>3)(a1),a1
+	move.w	AffLigneY,d0
+	bsr		AFficherNombre	;(pc)	;D0=nombre 9999, A1=ptr 
 	
+	movea.l	bitplaneB(pc),a1
+	lea 	130*(DISPLAY_DX>>3)(a1),a1
+	move.w	AffLigneY,d0
+	bsr		AFficherNombre	;(pc)	;D0=nombre 9999, A1=ptr 
 	
-;--- AFFICHE LE FAISCEAU EN VERT
+;--- AFFICHER LE FAISCEAU EN VERT
 	IFNE DEBUGDISPLAY_RASTER
 	move.w	#$00F0,COLOR00(a5)
 	ENDC
@@ -470,23 +474,27 @@ _timeBelowBitplanes:
 
 
 ;--- SOURIS PRESSEE ?
+
+
 TestClicDroit;
 	btst 	#10,$dff016 ; test RIGHT mouse click
-	bne.s		TestClicGauche
+	bne.s	.clicDroitNonEnfonce
 	;-- clic droit enfoncé
-	
-	
 .loopCG:
 	;-- clic droit non laché
 	btst 	#10,$dff016 ; test RIGHT mouse click
 	beq		.loopCG	
 	;-- clic droit laché
-	
 
-	bra.w 	_loop
+	;-- ACTION ICI
+	IFNE CST.Scroll.PasAPas
+	bsr IncrementerPosYScrolling ;modifie AffLigneY
+	ENDC
+
+.clicDroitNonEnfonce:
+
 	
 TestClicGauche:		
-
 	btst	#6,$bfe001
 	bne.w	_loop
 	;-- clic Gauche enfoncé
@@ -508,11 +516,12 @@ ErrorMem:
 	rts
 
 
-AffLigneY:	dc.w	BITPLANE_DY	;0 .. 287
 
 
 AFficherNombre:
-	;=>d0.w = #nombre 9999 max à afficher
+	;input
+	;	d0.w = #nombre 9999 max à afficher
+	
 	and.l	#$0000FFFF,d0	;nombre à afficher
 	moveq	#0,d1
 	moveq	#3-1,d2	;4 digits
@@ -592,6 +601,35 @@ _RandomByte:
 
 
 
+;--- INCREMENTE POSITION Y DU BITMAP A AFFICHER
+;CST.Scroll.Sens
+
+IncrementerPosYScrolling:
+;----- Incremente Position affichage
+	moveq.l	#0,d1
+	move.w	AffLigneY,d1
+	
+	
+	;bra .Calcul_sens_haut	;-- Choix du sens
+	
+	IFEQ CST.Scroll.Sens
+	;-- SENS BAS, Sens descente
+	subq	#1,d1
+	bne		.pasDeb	;tester si <0
+	move.w	#BITPLANE_DY,d1
+.pasDeb:
+	ELSE
+	;-- SENS HAUT, Sens montée 
+	addq	#1,d1
+	cmp.w	#BITPLANE_DY,d1
+	blo		.pasFin	;blo BITPLANE_DY > d1
+	moveq.l	#0,d1
+.pasFin:
+	ENDC
+	move.w	d1,AffLigneY
+	rts
+
+AffLigneY:	dc.w	CST.Scroll.PosYInit	;0 .. 287
 
 
 ;  _____ 
