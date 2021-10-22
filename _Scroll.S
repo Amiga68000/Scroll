@@ -6,18 +6,19 @@
 ;2021-10-12	début
 
 ;--- CONFIGURATION
-CST.DEBUG.DisplayTime = 1	;=0	;COUT=2 HBL	;affiche le compteur de rater
-CST.DEBUG.DisplayRaster	= 1 ;affiche la couleur raster rouge/vert
-CST.DEBUG.CountWaitBlit=1	;count waitblit and put value in CTRWAIT:
+CST.DEBUG.DisplayTime = 1		;=0	;COUT=2 HBL	;affiche le compteur de rater
+CST.DEBUG.DisplayRaster	= 1 	;affiche la couleur raster rouge/vert
+CST.DEBUG.CountWaitBlit=1		;count waitblit and put value in CTRWAIT:
+CST.DEBUG.AfficherVariables = 1	;COUT=60 HBL
 
-CST_Scroll_PasAPas = 0 		;1 step by step with right button
-CST_Scroll_PosYInit = 1		;starting position
+CST_Scroll_PasAPas = 0		;1 step by step with right button
+CST_Scroll_PosYInit = 0		;starting position
 CST_Scroll_Sens = 0 		;0 bas, 1 haut
 
-CST.RUN.AfficherTexteFixe = 0			;COUT=37 HBL environ	;texte fixe
+CST.RUN.AfficherTexteFixe = 0		;COUT=37 HBL environ	;texte fixe
 CST.RUN.EffacerBitPlaneCache = 0	;COUT=43 HBL 		;3eme Bitplane
 
-;	incdir	"sources:Arn-Scroll/"
+	incdir	"Arn-Scroll/"
 
 ;--- REFERENCES
 ;Architecture de Yragael http://www.stashofcode.fr
@@ -26,6 +27,8 @@ CST.RUN.EffacerBitPlaneCache = 0	;COUT=43 HBL 		;3eme Bitplane
 
 
 ;--- DOC
+
+;http://obligement.free.fr/articles/assembleur_programmation_blitter.php
 
 ; CMP A,B 	Entier (signé) 	Naturel(non signé)
 ; A >  B 		BLT 	BLO (ou BCS)
@@ -45,88 +48,54 @@ CST.RUN.EffacerBitPlaneCache = 0	;COUT=43 HBL 		;3eme Bitplane
 ; ENDC
 
 
+;--- BLITTER
+; 			AREA MODE 			LINE MODE
+; Bit 		BLTCON0 BLTCON1 Bit BLTCON0 BLTCON1
+; 15 		ASH3 	BSH3 	15 	ASH3 	BSH3
+; 14 		ASH2 	BSH2 	14 	ASH2 	BSH2
+; 13 		ASH1 	BSH1 	13 	ASH1 	BSH1
+; 12 		ASA0 	BSH0 	12 	ASH0 	BSH0
+; 11 		USEA 	0 		11 	1 		0
+; 10 		USEB 	0 		10 	0 		0
+; 09 		USEC 	0 		09 	1 		0
+; 08 		USED 	0 		08 	1 		0
+; 07 		LF7 	DOFF 	07 	LF7 	DPFF
+; 06 		LF6 	0 		06 	LF6 	SIGN
+; 05 		LF5 	0 		05 	LF5 	OVF
+; 04 		LF4 	EFE 	04 	LF4 	SUD
+; 03 		LF3 	IFE 	03 	LF3 	SUL
+; 02 		LF2 	FCI 	02 	LF2 	AUL
+; 01 		LF1 	DESC 	01 	LF1 	SING
+; 00 		LF0 	LINE(=0)00 	LF0 	LINE(=1)
+;
+; Function 	Description
+; ASH3-0 	Shift value of A source
+; BSH3-0 	Shift value of B source and line texture
+; USEA 	Mode control bit to use source A
+; USEB 	Mode control bit to use source B
+; USEC 	Mode control bit to use source C
+; USED 	Mode control bit to use destination D
+; LF7-0 	Logic function minterm select lines
+; EFE 	Exclusive fill enable
+; IFE 	Inclusive fill enable
+; FCI 	Fill carry input
+; DESC 	Descending (dec address)control bit
+; LINE 	Line mode control bit
+; SIGN 	Line draw sign flag
+; OVF 	Line/draw r/l word overflow flag
+; SUD 	Line draw, Sometimes up or down (=AUD)
+; SUL 	Line draw, Sometimes up or left
+; AUL 	Line draw, Always up or left
+; SING 	Line draw, Single bit per horiz line
+; DOFF 	Disables the D output- for external ALUs
+; The cycle occurs normally, but the data
+; bus is tristate (hires chips only)
+
 
 	SECTION Arnaud.68000,CODE_F
 
-;position du centre objet. rayon maxi 92 pix  equ  sqr(3*53^2), coins max 53,53,53
-RayonMaxi 	equ 96		;doit tre un miltiple de 8 pix, utilisé pour RAZ au blitter
-offsetX 	equ 160		;min 87, maxi 232
-offsetZ 	equ 100		;min 87, maxi 168  87=sqr(50^2+50^2+50^2) coin max (50,50,50)
-
-
-;---- Librairies -----
-ExecBase 		equ 4		;location of the exec.lib
-OldOpenLibrary 	equ -408
-OpenLib 		equ -552	;offset to the openLibrary function
-OpenLibVersion 	equ 34		;minimum version to use
-CloseLib 		equ -414	;offset to closeLibrary function
-PutString 		equ -948	;offset to putStr() function
-AllocMem		equ	-198
-FreeMem			equ	-210
-Forbid 			equ -132
-Permit 			equ -138
-
-
-;---- Registres -----
-VPOSR 	equ $004
-VHPOSR 	equ $006
-INTENA 	equ $09A
-INTENAR equ $01C
-INTREQ 	equ $09C
-INTREQR equ $01E
-DMACON 	equ $096
-DMACONR equ $002
-BLTAFWM equ $044
-BLTALWM equ $046
-BLTAPTH equ $050
-BLTAPTL equ $052
-BLTCPTH equ $048
-BLTDPTH equ $054
-BLTAMOD equ $064
-BLTBMOD equ $062
-BLTCMOD equ $060
-BLTDMOD equ $066
-BLTADAT equ $074
-BLTBDAT equ $072
-BLTCON0 equ $040
-BLTCON1 equ $042
-BLTSIZE equ $058
-DIWSTRT equ $08E
-DIWSTOP equ $090
-BPLCON0 equ $100
-BPLCON1 equ $102
-BPLCON2 equ $104
-DDFSTRT equ $092
-DDFSTOP equ $094
-BPL1MOD equ $108
-BPL2MOD equ $10A
-BPL1PTH equ $0E0
-BPL1PTL equ $0E2
-BPL2PTH equ $0E4
-BPL2PTL equ $0E6
-BPL3PTH equ $0E8
-BPL3PTL equ $0EA
-BPL4PTH equ $0EC
-BPL4PTL equ $0EE
-BPL5PTH equ $0F0
-BPL5PTL equ $0F2
-BPL6PTH equ $0F4
-BPL6PTL equ $0F6
-
-
-COLOR00 equ $180
-COLOR01 equ $182
-COLOR02 equ $184
-COLOR03 equ $186
-COLOR04 equ $188
-COLOR05 equ $18A
-COLOR06 equ $18C
-COLOR07 equ $18E
-COLOR08	equ	$190
-COP1LCH equ $080
-COPJMP1 equ $088
-FMODE 	equ $1FC
-
+	include	"Lib_Et_Registres.s"
+	include "macros.s"
 
 ;Config Programme
 
@@ -134,65 +103,11 @@ DISPLAY_DEPTH=1
 DISPLAY_DX=320
 DISPLAY_DY=256
 BITPLANE_DX = DISPLAY_DX
-BITPLANE_DY=256+32
+BITPLANE_DY=DISPLAY_DY+64
 DISPLAY_X=$81
 DISPLAY_Y=$2C
 
 TAILLE_BITPLANE=((BITPLANE_DX*BITPLANE_DY)>>3)
-
-
-
-;  __  __     _      ___   ___    ___  
-; |  \/  |   /_\    / __| | _ \  / _ \ 
-; | |\/| |  / _ \  | (__  |   / | (_) |
-; |_|  |_| /_/ \_\  \___| |_|_\  \___/ 
-;
-;--- MACROS ---
-
-;--- MACRO Attendre le Blitter. 
-;Quand la seconde opérande est une adresse, BTST ne permet de tester que les bits 7-0 de l'octet pointé, 
-;mais traitant la première opérande comme le numéro du bit modulo 8, 
-;BTST #14,DMACONR(a5) revient à tester le bit 14%8=6 de l'octet de poids fort de DMACONR, 
-;ce qui correspond bien à BBUSY...
-
-WAITBLIT:	MACRO
-_waitBlitter0\@
-	IFNE CST.DEBUG.CountWaitBlit
-	;add.l	#1,CTRWait
-	ENDC
-	btst #6,DMACONR(a5)
-	;bne _waitBlitter0\@
-_waitBlitter1\@
-	IFNE CST.DEBUG.CountWaitBlit
-	add.l	#1,CTRWait
-	ENDC
-	btst #6,DMACONR(a5)
-	bne _waitBlitter1\@
-	IFNE CST.DEBUG.CountWaitBlit
-	sub.l	#1,CTRWait
-	ENDC
-	ENDM
-
-;Syntaxe : 
-;AFFTEXTE 0,0,"Hello World" ;MACRO : x,y,"texte"
-	
-AFFTEXTE: MACRO	;\1=x.car, \2=y.car, \3="Texte" 
-	move.l 	bitplaneB_ptr(pc),a2
-	;add.l	#TAILLE_BITPLANE,a2
-	lea		.txt\@(pc),a3
-	add.l	#\2*40*8+\1,A2	;y*40*8+x (pas de 8 pix)
-	bsr		AfficherTexte8x8	;d0,A0,A2,A3 utilisés
-	bra		.finTxt\@
-.txt\@:
-	dc.b	\3,0
-	even	
-.finTxt\@:
-	ENDM	
-	
-	
-
-	
-	
 
        
 ;  ___          _             _   
@@ -212,8 +127,7 @@ Debut:
 	bsr.w	CouperHardware
 	bsr.w	InitiliserCopperList
 	bsr.w	CreerPolice16x16
-
-
+	
 
 ;  _                       
 ; | |     ___   ___   _ __ 
@@ -244,47 +158,22 @@ _waitVBL:
 
 ;--- CONFIGURER L'AFFICHAGE
 	bsr	PermuterBplEtConfigurerAffichage
-	
 
-;----- CONSTRUIRE L'IMAGE
-
-	
-	; ;Copier Tile
-	; move.l 	bitplaneB_ptr(pc),a0
-	; moveq.l	#10,d0
-	; bsr.w	CopyTile	; ;A0 = ptr dest, D0 = num du tile 0 à 79
-
+;--- CONSTRUIRE L'IMAGE
 
 	;Incrémenter valeur du scrolling
 	IFEQ CST_Scroll_PasAPas
-	bsr TraiterScrolling ;traiter scrolling
+	bsr TraiterScrolling ;crée TILES -> bpl C et copie -> bpl A et B
 	ENDC
-	
-	
-
-	
-	
+		
 	;Afficher du texte
 	IFNE CST.RUN.AfficherTexteFixe
 	AFFTEXTE 0,0,"Scroll - Arnaud - 2021-09-28" ;MACRO : x,y,"texte"
 	AFFTEXTE 0,1,"Amiga68000@gmail.com" ;MACRO : x,y,"texte"	;(pc)	;cout 37 HBL
 	ENDC
 
+	;bsr	Afficher_BOB
 
-	movem.l d0-d7/a0-a6,-(sp)
-	; ;--- TRACER LIGNE PLEINE AU BLITTER	
-	; ;Entree (d0=x1,d1=y1,d2=x2,d3=y2, a1=adresse du bitplane)
-	; move.l	bitplaneB_ptr(pc),a1
-	; move.l	#100,d0
-	; move.l	#100,d1
-	; move.l	#200,d2
-	; move.l	#200,d3
-	; bsr.w	TracerLignePleine
-	movem.l (sp)+,d0-d7/a0-a6
-
-
-
-	
 
 	;--- EFFACER LE BITPLANE CACHE (Bitplane C) 
 	IFNE CST.RUN.EffacerBitPlaneCache
@@ -294,20 +183,11 @@ _waitVBL:
 	bsr.w		Effacer_BitPlaneC2	;(pc)
 	ENDC
 	
-	
-	
-	;--- AFFICHER LA POSITION SCROLLING
-	movea.l	bitplaneB_ptr(pc),a1
-	lea 	48*(DISPLAY_DX>>3)(a1),a1
-	move.w	AffLigneY,d0
-	bsr		AFficherNombre	;(pc)	;D0=nombre 9999, A1=ptr 
-	;à 2 endroits
-	movea.l	bitplaneB_ptr(pc),a1
-	lea 	130*(DISPLAY_DX>>3)(a1),a1
-	move.w	AffLigneY,d0
-	bsr		AFficherNombre	;(pc)	;D0=nombre 9999, A1=ptr 
-	
-	
+
+	;--- AFFICHER LES VARIABLES
+	IFNE CST.DEBUG.AfficherVariables
+	bsr	Afficher_Variables
+	ENDC
 	
 	;--- AFFICHER LE FAISCEAU EN VERT
 	IFNE CST.DEBUG.DisplayRaster
@@ -322,6 +202,8 @@ _waitVBL:
 	;le temps est donc compté en nombre de ligne à partir de DISPLAY_Y+DISPLAY_DY incluse
 	movem.l	d0-d2/a0-a3,-(sp)
 	
+	AFFTEXTE 0,0,"Time=" ;MACRO : x.car,y.car,"texte"
+	
 	move.l	VPOSR(a5),d0
 	lsr.l	#8,d0
 	and.w	#$01FF,d0
@@ -335,7 +217,7 @@ _timeBelowBitplanes:
 	sub.w	#DISPLAY_Y+DISPLAY_DY-1,d0
  _timeDisplayCounter:
 	movea.l	bitplaneB_ptr(pc),a1
-	lea 	24*(DISPLAY_DX>>3)(a1),a1
+	lea 	8*(DISPLAY_DX>>3)(a1),a1
 	bsr		AFficherNombre	;(pc)	;D0=nombre 9999, A1=ptr 
 	
 	movem.l	(sp)+,d0-d2/a0-a3
@@ -353,6 +235,7 @@ TestClicDroit;
 .loopCG:
 	;-- clic droit non laché
 	btst 	#10,$dff016 ; test RIGHT mouse click
+	
 	beq		.loopCG	
 	;-- clic droit laché
 
@@ -365,8 +248,8 @@ TestClicDroit;
 	
 TestClicGauche:		
 	btst	#6,$bfe001
-	bne.w	_loop
-	;-- clic Gauche enfoncé
+	bne.w	_loop 	;enfoncé
+	;-- ici enfoncé
 	
 	
 ;  ___   _        
@@ -385,9 +268,6 @@ ErrorMem:
 	rts
 
 
-
-
-
 	
 
 ;  ___   _   _   ___         ___                _     _                   
@@ -396,21 +276,57 @@ ErrorMem:
 ; |___/  \___/  |___/       |_|_\ \___/  \_,_|  \__| |_| |_||_| \___| /__/
 ;                                                                         
 
-
-
-
-
+	IFNE CST.DEBUG.AfficherVariables
+Afficher_Variables:
+	
+	;--- AFFICHER LA POSITION SCROLLING
+	AFFTEXTE 0,5,"AffLigneY=" ;MACRO : x,y,"texte"
+	;1er endroit
+	movea.l	bitplaneB_ptr(pc),a1
+	lea 	6*8*(DISPLAY_DX>>3)(a1),a1
+	move.w	AffLigneY,d0
+	bsr		AFficherNombre	;(pc)	;D0=nombre 9999, A1=ptr 
+	;2eme endroit
+	AFFTEXTE 0,16,"AffLigneY=" ;MACRO : x.car,y.car,"texte"
+	movea.l	bitplaneB_ptr(pc),a1
+	lea 	17*8*(DISPLAY_DX>>3)(a1),a1
+	move.w	AffLigneY,d0
+	bsr		AFficherNombre	;(pc)	;D0=nombre 9999, A1=ptr 
+	
+	;-- AFFICHER CTR 65536
+	move.w	CTR_65536,d0
+	movea.l	bitplaneB_ptr(pc),a1
+	lea 	32+(0*8*(DISPLAY_DX>>3))(a1),a1
+	bsr		AFficherNombre	;(pc)	;D0=nombre 9999, A1=ptr 
+	AFFTEXTE 20,0,"CTR 65536=" ;MACRO : x.car,y.car,"texte"
+	
+	;-- AFFICHER CTR 32
+	move.w	CTR0..31,d0
+	movea.l	bitplaneB_ptr(pc),a1
+	lea 	32+(3*8*(DISPLAY_DX>>3))(a1),a1
+	bsr		AFficherNombre	;(pc)	;D0=nombre 9999, A1=ptr 
+	AFFTEXTE 20,3,"CTR 0..31=" ;MACRO : x.car,y.car,"texte"
+	
+	;-- AFFICHER Pos Tile ;DEBUG ***************************
+	move.w	CTR_posYTile,d0
+	movea.l	bitplaneB_ptr(pc),a1
+	lea 	32+(5*8*(DISPLAY_DX>>3))(a1),a1
+	bsr		AFficherNombre	;(pc)	;D0=nombre 9999, A1=ptr 
+	AFFTEXTE 20,5,"PosY TILE=" ;MACRO : x.car,y.car,"texte"
+	
+	rts
+	ENDC
+	
 
 TraiterScrolling:
-
 	bsr.w	IncrementerPosYScrolling
+	bsr		CompterCTR65536
 	bsr.w	CompterCTR31
 	bsr.w	CTR_Sequenceur
 	rts
 	
 	
-	
-	
+
 ;--- INCREMENTE POSITION Y DU BITMAP A AFFICHER
 IncrementerPosYScrolling:
 	;----- Incremente Position affichage
@@ -419,8 +335,8 @@ IncrementerPosYScrolling:
 	IFEQ CST_Scroll_Sens
 	;-- SENS BAS, Sens descente
 	subq	#1,d1
-	bne		.pasDeb	;tester si <0
-	move.w	#BITPLANE_DY,d1
+	bge		.pasDeb	;tester si <=0 ; bge signé A <= B 
+	move.w	#BITPLANE_DY-1,d1
 .pasDeb:
 	ELSE
 	;-- SENS HAUT, Sens montée 
@@ -436,82 +352,145 @@ IncrementerPosYScrolling:
 AffLigneY:	dc.w	CST_Scroll_PosYInit	;0 .. 287
 
 
+;---- COMPTEUR 0..65535
+CompterCTR65536:
+	add.w	#1,CTR_65536
+	rts
+CTR_65536:dc.w	0
+
+
+
 ;---- COMPTEUR 0..31
 CompterCTR31:
 	move.w	AffLigneY,d0
 	and.w	#%11111,d0
 	move.w	d0,CTR0..31
-	
-	;-- AFFICHER CTR
-	movea.l	bitplaneB_ptr(pc),a1
-	lea 	100*(DISPLAY_DX>>3)(a1),a1
-	bsr		AFficherNombre	;(pc)	;D0=nombre 9999, A1=ptr 
-	
 	rts
-	
 CTR0..31:	dc.w	0
+
+
+
+
 
 
 ;--- ACTION = f(CTR31)
 CTR_Sequenceur:
-	;0..9 	: copier TILES du decor correspondant dans bitplane C
-	;10		: copier bas bitplane C vers A
-	;11		: copier bas bitplane C vers B
+	;31		: CALCUL POINTEUR ZONE NEW TILES
+	;30 à 21: COPIER TILES du decor correspondant dans bitplane C
+	;20		: copier TILES bitplane C --> A
+	;19		: copier TILES bitplane C --> B
 
-	
 	move.w	CTR0..31,d0
-	bne		.saut0
 	
-	;CTR=0 : calcul du pointeur zone new Tiles
-	movea.l bitplaneC_ptr(pc),a0
 	
-	moveq.l	#0,d1
+	cmp.w	#31,d0
+	bne		.pas31
+
+	;CTR=31
+	
+	;--- calcul du pointeur zone new Tiles
+	;movea.l bitplaneB_ptr(pc),a0 ;DEBUG ***************************
 	move.w	AffLigneY,d1	;y
-	add.w	#DISPLAY_DY,d1	;y+255
-	cmp.w	#BITPLANE_DY,d1
-	blo		.pasDepasse	;si d1 < DISPLAY_Y (non signé)
-	sub.w	#BITPLANE_DY,d1	;dernier y affiche
-.pasDepasse:	
+	sub.w	#31+32,d1
+	bge		.pasDepasse	;bge signé : A <= B 
+		;-- inf a 0 strictement
+		add.w	#BITPLANE_DY,d1
+.pasDepasse:
+	move.w	d1,CTR_posYTile ;DEBUG**********************
 	mulu	#BITPLANE_DX>>3,d1
+	movea.l bitplaneC_ptr(pc),a0
 	add.l	d1,a0
 	movea.l	a0,bitplaneZoneNewTile_PTR
+	rts
 	
-.saut0:
+.pas31:
+	cmp.w	#21,d0
+	blo		.pas21	;si d0<21
 	
-	cmp.w	#11,d0
-	bne	.saut1
-	;CTR=10
-	
-	bra	.fin
-.saut1:
-	cmp.w	#10,d0
-	bne		.saut2
-	;CTR=11
-	
-	bra	.fin
-.saut2:
-	cmp.w	#10,d0
-	bhs		.saut3	;>=
-	;CTR<10
-	move.l	#Decor_Tiles,a2
-	add.w	d0,d0	;pas de 2 octets
+	;CTR=21 à 30
+	;--- copier de new Tiles dans bitplane C
+	and.l	#$ff,d0
+	sub.w	#21,d0	;0..9
+	add.w	d0,d0	;0..18 pas de 2 octets
+	moveq.l	#0,d1
 	move.w	d0,d1
+	movea.l	Decor_Tiles_PTR(pc),a2
 	move.w	(a2,d0),d0	;n° du Tile
 	;move.l 	bitplaneB_ptr(pc),a0
 	;move.l 	bitplaneC_ptr(pc),a0 ;TODO A enlever **********************
-	move.l 	bitplaneZoneNewTile_PTR(pc),a0
-
 	add.w	d1,d1	;pos X du Tile en octet
-	and.l	#$FFFF,d1
+	move.l 	bitplaneZoneNewTile_PTR(pc),a0
 	add.l	d1,a0
-		
 	bsr		CopyTile
+	rts
 	
-.saut3:
-.fin:
+	
+.pas21:
+	cmp.w	#20,d0
+	bne		.pas20
+	
+	;CTR=20
+	;--- copier Bitplane zone Tiles créées C --> A
+	movea.l	bitplaneZoneNewTile_PTR(pc),a0
+	move.l	a0,a1
+	sub.l	#TAILLE_BITPLANE*DISPLAY_DEPTH*1,a1
+	Bra		.CopierBlitter
+
+
+.pas20:
+	cmp.w	#19,d0
+	bne		pas19
+	
+	;CTR=19
+	;--- copier Bitplane zone Tiles créées C --> B
+	movea.l	bitplaneZoneNewTile_PTR(pc),a0
+	move.l	a0,a1
+	sub.l	#TAILLE_BITPLANE*DISPLAY_DEPTH*2,a1
+
+.CopierBlitter:
+	;rts	;DEBUG ******************************
+	movem.l d0-d7/a0-a6,-(sp)
+	lea 	$DFF000,a5
+	WAITBLIT
+	move.l	a0,BLTAPTH(a5)		;adresse source
+	move.l	a1,BLTDPTH(a5)		;adresse dest
+	move.w	#%0000100111110000,BLTCON0(a5)	;canal A et D, D=A
+	move.w	#%0000000000000000,BLTCON1(a5)
+	move.w	#%1000000001000000,DMACON(a5)
+	move.w	#0,BLTAMOD(a5)
+	move.w	#0,BLTDMOD(a5)
+	move.w	#$FFFF,BLTAFWM(a5)	;Masque 1er mot de chaque ligne de A
+	move.w	#$FFFF,BLTALWM(a5)	;Masque dernier mot de chaque ligne de A
+	move.w	#(32<<6)!((BITPLANE_DX)>>4),BLTSIZE(a5)	;32pix de haut
+	movem.l (sp)+,d0-d7/a0-a6
+
+	rts
+	
+CTR_posYTile:	dc.w 0	;DEBUG ******************************
+	
+
+
+	
+pas19:
+	cmp.w	#18,d0
+	bne 	.pas18
+	;CTR=18, incrémenter TILE_PTR
+	movea.l	Decor_Tiles_PTR(pc),a0
+	lea		20(a0),a0
+	move.w	(a0),d1
+	cmp.w	#$FFFF,d1
+	bne	.pasRaz
+		;raz
+		lea	Decor_Tiles(pc),a0
+.pasRAZ:
+	move.l	a0,Decor_Tiles_PTR
+.pas18:
+	
+FinCTR:
 	rts
 
-bitplaneZoneNewTile_PTR:	dc.l	0
+
+bitplaneZoneNewTile_PTR:	dc.l	ScreenA ;evite le bug
 
 
 
@@ -521,6 +500,14 @@ bitplaneZoneNewTile_PTR:	dc.l	0
 	; move.l 	bitplaneB_ptr(pc),a0
 	; moveq.l	#0,d0
 	; bsr		CopyTile	; ;A0 = ptr dest, D0 = num du tile 0 à 79
+
+	; lea 	(a0,d2.w),a2 		;12 cycles
+	; lea 	DISPLAY_DX>>3(a3),a3 ;8cycles
+
+TILES_DX = 32
+TILES_DY = 32
+TILES_BDD_DX = 320
+TILES_BDD_DY = 256
 
 CopyTile:
 	;A0 = ptr destination 
@@ -534,27 +521,74 @@ CopyTile:
 	and.l	#$ff,d0
 	add.w	d0,d0
 	add.w	d0,d0	;x en octet
-	mulu	#40*32,d1
+	mulu	#(TILES_BDD_DX>>3)*TILES_DY,d1
 	add.l	d1,d0	;offset en octet du tile
 	add.l	d0,a1	;ptr sur tile à copier
-	moveq.l	#32-1,d0
+	moveq.l	#TILES_DY-1,d0
 .bcl:
-	move.l	(a1),(a0)
+	move.l	(a1),(a0)	;TILES_DX = 32 pixels
 	add.l	#40,a1
 	add.l	#DISPLAY_DX>>3,a0
 	dbf	d0,.bcl
 
 	rts
 
-Decor_Tiles_PTR: dc.l	0
+Decor_Tiles_PTR: 
+	dc.l	Decor_Tiles
 Decor_Tiles:
 	dc.w	0,1,2,3,4,5,6,7,8,9
-	dc.w	10,11,2,3,4,5,6,7,8,9
-	dc.w	20,21,2,3,4,5,6,7,8,9
+	dc.w	10,11,12,13,14,15,16,17,18,19
+	dc.w	20,21,22,23,24,25,26,27,28,29
 	dc.w	$FFFF ;fin
 	EVEN
 	
 	
+
+
+
+
+
+Afficher_BOB:
+	;-- AFFICHER BOB AU BLITTER
+	
+BOB_X=160
+BOB_Y=150
+BOB_DX=16
+BOB_DY=16
+
+	movem.l d0-d7/a0-a6,-(sp)
+	
+	lea bob_img,a0	;bob
+	move.w #BOB_X,d0	;BOB_X
+	move.w d0,d1
+	and.w #$F,d0
+	ror.w #4,d0
+	or.w #$0BFA,d0
+	lsr.w #3,d1
+	and.b #$FE,d1
+	move.w #BOB_Y,d2 ;BOB_Y
+	mulu #DISPLAY_DX>>3,d2
+	add.w d1,d2
+	movea.l bitplaneB_ptr(pc),a1	;backBuffer
+	lea (a1,d2.w),a1
+	
+	lea 	$DFF000,a5
+	WAITBLIT
+	move.w d0,BLTCON0(a5)
+	move.w #$0000,BLTCON1(a5)
+	move.w #$FFFF,BLTAFWM(a5)
+	move.w #$0000,BLTALWM(a5)
+	move.w #-2,BLTAMOD(a5)
+	move.w #(DISPLAY_DX-(BOB_DX+16))>>3,BLTCMOD(a5)
+	move.w #(DISPLAY_DX-(BOB_DX+16))>>3,BLTDMOD(a5)
+	move.l a0,BLTAPTH(a5)
+	move.l a1,BLTCPTH(a5)
+	move.l a1,BLTDPTH(a5)
+	move.w #(BOB_DY<<6)!((BOB_DX+16)>>4),BLTSIZE(a5)
+
+	movem.l (sp)+,d0-d7/a0-a6
+
+	rts
 	
 	
 	
@@ -626,12 +660,12 @@ AFficherNombre:
 		clr.w 	d2
 		move.b 	d1,d2
 		lsl.w 	#3,d2
-		lea 	(a0,d2.w),a2
+		lea 	(a0,d2.w),a2 ;12 cycles
 		move.l 	a1,a3
 		moveq	#8-1,d2
 .timeLoopDisplayChar:
 			move.b	(a2)+,(a3)
-			lea 	DISPLAY_DX>>3(a3),a3
+			lea 	DISPLAY_DX>>3(a3),a3 ;8cycles
 		dbf 	d2,.timeLoopDisplayChar
 		lea 	1(a1),a1
 		lsr.l	#8,d1
@@ -647,18 +681,25 @@ AFficherNombre:
 PermuterBplEtConfigurerAffichage:
 ;----- PERMUTER LES BITPLANE
 	;Permuter circulairement les bitplanes : A(à afficher) --> C(à effacer) --> B(à construire) --> A
+	; move.l bitplaneA_ptr(pc),d0
+	; move.l bitplaneB_ptr(pc),d1
+	; move.l bitplaneC_ptr(pc),d2
+	; move.l d1,bitplaneA_ptr	;Bitplane Affiché
+	; move.l d2,bitplaneB_ptr	;Bitplane en construction
+	; move.l d0,bitplaneC_ptr ;Bitplane en effacement
+	
+	;permutation A et B
 	move.l bitplaneA_ptr(pc),d0
 	move.l bitplaneB_ptr(pc),d1
-	move.l bitplaneC_ptr(pc),d2
 	move.l d1,bitplaneA_ptr	;Bitplane Affiché
-	move.l d2,bitplaneB_ptr	;Bitplane en construction
-	move.l d0,bitplaneC_ptr ;Bitplane en effacement
-
+	move.l d0,bitplaneB_ptr	;Bitplane en construction
+	; move.l d0,bitplaneC_ptr ;Bitplane decor
+	
+	
 ;----- Calcul Position affichage
-	move.w	AffLigneY,d1
-	;d1 = d0 + AffLigneY * (BITPLANE_DX / 8)
-	mulu	#BITPLANE_DX>>3,d1
-	add.l	d0,d1
+	move.w	AffLigneY,d0
+	mulu	#BITPLANE_DX>>3,d0
+	add.l	d0,d1 ;d1 = d1 + AffLigneY * (BITPLANE_DX / 8)
 	
 ;----- AFFICHER BitPlaneA VIA COPPERLIST ----------
 	;ecriture des adresses bitplane dans la copperlist
@@ -690,10 +731,7 @@ aff:
 
 
 
-
-
-
-;---- Affiche partie 2 (partie basse pointant sur le début du btplane)
+;---- Affiche partie 2 (partie basse pointant sur le début du bitplane)
 	;wait ligne (BITPLANE_DY - AFFLigneY) si < DISPLAY_DY
 
 	; dc.w $FFE1,$FFFE ;wait V7...V0 H8...H2 1,BCB BMV6...BMV0 BMH8...BMH2 0
@@ -752,6 +790,19 @@ aff:
 ;   | |  
 ;   |_|  TRACER AU BLITTER
 ;        
+
+
+;-- ROUTINE D'APPEL
+	;movem.l d0-d7/a0-a6,-(sp)
+	; ;--- TRACER LIGNE PLEINE AU BLITTER	
+	; ;Entree (d0=x1,d1=y1,d2=x2,d3=y2, a1=adresse du bitplane)
+	; move.l	bitplaneB_ptr(pc),a1
+	; move.l	#100,d0
+	; move.l	#100,d1
+	; move.l	#200,d2
+	; move.l	#200,d3
+	; bsr.w	TracerLignePleine
+	;movem.l (sp)+,d0-d7/a0-a6
 
 
 
@@ -862,7 +913,13 @@ TableOctant:	;3 premiers bits=octant, bit1 = 1 si 1 pt /ligne, bit 0=1 mode trac
 
 
 ;--- EFFACER BITPLANE C	-------------------
-	
+
+;position du centre objet. rayon maxi 92 pix  equ  sqr(3*53^2), coins max 53,53,53
+RayonMaxi 	equ 96		;doit tre un miltiple de 8 pix, utilisé pour RAZ au blitter
+offsetX 	equ 160		;min 87, maxi 232
+offsetZ 	equ 100		;min 87, maxi 168  87=sqr(50^2+50^2+50^2) coin max (50,50,50)
+
+
 OffsetOctetRAZBLT=(((offsetZ-RayonMaxi)*DISPLAY_DX)+(offsetX-RayonMaxi))/8
 
 Effacer_BitPlaneC:
@@ -1123,9 +1180,9 @@ angle:				DC.W	0
 copperlist_PTR:		DC.L 	CopListDataStart
 Copperlist_BitPlanes_PTR:	dc.l	CplBitPlanes
 Font16_PTR:			DC.L 	0
-bitplaneA_ptr:			DC.L 	ScreenA
-bitplaneB_ptr:			DC.L 	ScreenB
-bitplaneC_ptr:			DC.L 	ScreenC
+bitplaneA_ptr:		DC.L 	ScreenA
+bitplaneB_ptr:		DC.L 	ScreenB
+bitplaneC_ptr:		DC.L 	ScreenC
 
 
 
@@ -1137,6 +1194,43 @@ bitplaneC_ptr:			DC.L 	ScreenC
 
 
 	section	coplist,data_c
+
+
+bob_mask:
+	dc.w	%1111100000011111
+	dc.w	%1111100000011111
+	dc.w	%1111100000011111
+	dc.w	%1111110000111111
+	dc.w	%1111111111111000
+	dc.w	%1111111111110000
+	dc.w	%0111111111110000
+	dc.w	%0000111111110000
+	dc.w	%0001111111111000
+	dc.w	%0011110000111100
+	dc.w	%0111100000011110
+	dc.w	%1111100000011111
+	dc.w	%1111000000001111
+	dc.w	%1111000000001111
+	dc.w	%1111000000001111
+	dc.w	%1111000000001111
+		
+bob_IMG
+	dc.w	%1111100000011111
+	dc.w	%1001100000011111
+	dc.w	%1001100000011111
+	dc.w	%1000110000111111
+	dc.w	%1000111111111000
+	dc.w	%1100000000110000
+	dc.w	%0111100000110000
+	dc.w	%0000110000110000
+	dc.w	%0001011111111000
+	dc.w	%0010110000111100
+	dc.w	%0110100000011110
+	dc.w	%1001100000011111
+	dc.w	%1001000000001111
+	dc.w	%1001000000001111
+	dc.w	%1001000000001111
+	dc.w	%1111000000001111
 
 ;   ___                                   _      _        _   
 ;  / __|  ___   _ __   _ __   ___   _ _  | |    (_)  ___ | |_ 
@@ -1222,17 +1316,25 @@ CplBitPlanesPart2:
 
 	section	screen,bss_c
 
+
+	
+
 ScreenA	
-	INCBIN "sources:Arn-Scroll/320x288x1p.bmp.bin"	;32 à 127
+	INCBIN "BplA.320x288x1p.bmp.bin"	;32 à 127
+	ds.b	32*DISPLAY_DX>>3
 	EVEN
 ScreenB 
-	INCBIN "sources:Arn-Scroll/320x288x1p.bmp.bin"	;32 à 127
+	;ds.b	DISPLAY_DEPTH*TAILLE_BITPLANE
+	INCBIN "BplB.320x288x1p.bmp.bin"	;32 à 127
+	ds.b	32*DISPLAY_DX>>3
 	EVEN
 ScreenC 
-	INCBIN "sources:Arn-Scroll/320x288x1p.bmp.bin"	;32 à 127
+	ds.b	DISPLAY_DEPTH*TAILLE_BITPLANE
+	;INCBIN "320x288x1p.bmp.bin"	;32 à 127
 	EVEN
 Tiles:
-	INCBIN "sources:Arn-Scroll/Tiles320x256x1p.bmp.bin" ;10x8 Tiles de 32x32 pix
+	INCBIN "Tiles320x256x1p.bmp.bin" ;10x8 Tiles de 32x32 pix
+
 	even
 	
 ;ScreenA	ds.b	DISPLAY_DEPTH*TAILLE_BITPLANE

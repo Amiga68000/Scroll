@@ -1,7 +1,12 @@
+#pip install Pillow  --> dans la console
 from PIL import Image
 
+
+
 #nom = "320x288x1p.bmp"
-nom= "Tiles320x256x1p.bmp"
+nom= "BplA.320x288x1p.bmp"
+nom= "BplB.320x288x1p.bmp"
+nom="Tiles320x256x1p.bmp"
 
 def valeur(adresse, longueur):
     v = 0
