@@ -41,7 +41,7 @@ AFFTEXTE: MACRO	;\1=x.car, \2=y.car, \3="Texte"
 	move.l 	bitplaneB_ptr(pc),a2
 	;add.l	#TAILLE_BITPLANE,a2
 	lea		.txt\@(pc),a3
-	add.l	#\2*40*8+\1,A2	;y*40*8+x (pas de 8 pix)
+	add.l	#\2*(BITPLANE_DX>>3)*8+\1,A2	;y*40*8+x (pas de 8 pix)
 	bsr		AfficherTexte8x8	;d0,A0,A2,A3 utilisés
 	bra		.finTxt\@
 .txt\@:
