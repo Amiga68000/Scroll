@@ -1,0 +1,99 @@
+00001000 Starting Address
+Assembler used: EASy68K Editor/Assembler v5.16.01
+Created On: 04/11/2021 12:21:58
+
+00000000                             1   *-----------------------------------------------------------
+00000000                             2  * Title      :
+00000000                             3  * Written by :
+00000000                             4  * Date       :
+00000000                             5  * Description:
+00000000                             6  *-----------------------------------------------------------
+00001000                             7      ORG    $1000
+00001000                             8  START:                  ; first instruction of program
+00001000                             9  
+00001000                            10  * Put program code here
+00001000                            11      
+00001000  =00000096                 12  BOB32_Y equ 150
+00001000  =00000020                 13  BOB32_DY equ 32
+00001000  =00000140                 14  BITPLANE_DY equ 256+64 
+00001000                            15       
+00001000                            16      
+00001000  323C 0096                 17      move.w  #BOB32_Y,d1
+00001004  343C 0020                 18      move.w  #BOB32_DY,d2
+00001008                            19      
+00001008                            20      
+00001008                            21      
+00001008                            22      
+00001008  D279 00001056             23      add.w   AffLigneY,d1    ;D1 = BOB_Ligne_Ydeb = BOB_Y + AffLigneY
+0000100E  B27C 0140                 24      cmp.w   #BITPLANE_DY,d1
+00001012  6500 000C                 25      blo .saut1
+00001016                            26          ;CAS 1 : BITPLANE_DY <= BOB_Ligne_Ydeb
+00001016  0441 0140                 27          sub.w   #BITPLANE_DY,d1
+0000101A                            28          ;deplacer en 1 bloc d0=x, d1=y
+0000101A  6100 0036                 29          bsr Copy_Blit_BOB_h32 ;d0=x, d1=y, a0=adr BOB, a5=$dff000, [a1], [d2]
+0000101E  4E75                      30          rts
+00001020                            31  .saut1:
+00001020                            32          ;BITPLANE_DY => BOB_Ligne_Ydeb
+00001020  3801                      33          move.w  d1,d4
+00001022  0644 0020                 34          add.w   #BOB32_DY,d4  ;d4 = BOB_Ligne_YFin
+00001026  B87C 0140                 35          cmp.w   #BITPLANE_DY,d4
+0000102A  6500 0020                 36          blo     .saut2
+0000102E                            37              ;CAS 2 : BITPLANE_DY <= BOB_Ligne_YFin
+0000102E                            38              ;deplacer en 2 blocs
+0000102E  3A04                      39              move.w  d4,d5
+00001030  383C 0140                 40              move.w  #BITPLANE_DY,d4 ;BITPLANE_DY - 1 - BOB_Ligne_Ydeb
+00001034  9841                      41              sub.w   d1,d4
+00001036                            42              ;bloc 1 : d1 = Y1, d4 = DY
+00001036  3600                      43              move.w  d0,d3   ;sauve d0=x.pix
+00001038  6100 001A                 44              bsr Copy_Blit_BOB_hd4 ;d0=x, d1=y, a0=adr BOB, a5=$dff000, [a1], [d2]
+0000103C                            45  
+0000103C  3003                      46              move.w  d3,d0   ;restaure d0=x.pix
+0000103E  7200                      47              moveq.l #0,d1
+00001040  3805                      48              move.w  d5,d4
+00001042  0444 0140                 49              sub.w   #BITPLANE_DY,d4 ;d4 = BOB_Ligne_YFin - BITPLANE_DY 
+00001046                            50              ;bloc 2 : d1 = Y1, d4 = DY
+00001046  6100 000C                 51              bsr Copy_Blit_BOB_hd4 ;d0=x, d1=y, a0=adr BOB, a5=$dff000, [a1], [d2] 
+0000104A                            52  
+0000104A  4E75                      53          rts  
+0000104C                            54  .saut2:
+0000104C                            55              ;CAS 3 : BITPLANE_DY > BOB_Ligne_YFin
+0000104C                            56              ;deplacer en 1 bloc 
+0000104C                            57              ;d1 = Y1, d2 = DY
+0000104C  6100 0004                 58              bsr Copy_Blit_BOB_h32 ;d0=x, d1=y, a0=adr BOB, a5=$dff000, [a1], [d2]
+00001050                            59              
+00001050  4E75                      60          rts
+00001052                            61          
+00001052                            62  Copy_Blit_BOB_h32:
+00001052  4E75                      63      rts
+00001054                            64  Copy_Blit_BOB_hd4:
+00001054  4E75                      65      rts    
+00001056                            66          
+00001056                            67          
+00001056                            68          
+00001056                            69          
+00001056                            70          
+00001056= 008A                      71  AffLigneY: dc.w    138
+00001058                            72  
+00001058                            73  
+00001058  FFFF FFFF                 74      SIMHALT             ; halt simulator
+0000105C                            75  
+0000105C                            76  * Put variables and constants here
+0000105C                            77  
+0000105C                            78      END    START        ; last line of source
+
+No errors detected
+No warnings generated
+
+
+SYMBOL TABLE INFORMATION
+Symbol-name         Value
+-------------------------
+AFFLIGNEY           1056
+BITPLANE_DY         140
+BITPLANE_DY:SAUT1   1020
+BITPLANE_DY:SAUT2   104C
+BOB32_DY            20
+BOB32_Y             96
+COPY_BLIT_BOB_H32   1052
+COPY_BLIT_BOB_HD4   1054
+START               1000

@@ -1,0 +1,61 @@
+00001000 Starting Address
+Assembler used: EASy68K Editor/Assembler v5.16.01
+Created On: 16/11/2021 23:47:22
+
+00000000                             1   *-----------------------------------------------------------
+00000000                             2  * Title      :
+00000000                             3  * Written by :
+00000000                             4  * Date       :
+00000000                             5  * Description:
+00000000                             6  *-----------------------------------------------------------
+00001000                             7      ORG    $1000
+00001000                             8  START:                  ; first instruction of program
+00001000                             9  
+00001000                            10  * Put program code here
+00001000                            11          
+00001000                            12          
+00001000  363C 0000                 13      move.w  #0,d3
+00001004  3A03                      14      move.w  d3,d5
+00001006                            15  
+00001006                            16  
+00001006  4643                      17      not.w   d3
+00001008  5243                      18      add.w   #1,d3
+0000100A  C67C 000F                 19      and.w   #$f,d3
+0000100E  3803                      20      move.w  d3,d4
+00001010  E94C                      21      lsl.w   #4,d4
+00001012  8843                      22      or.w    d3,d4   ;TODO DEBUG pour 2eme plan enlever ';'
+00001014                            23  
+00001014                            24      
+00001014                            25      
+00001014                            26      ;-- offset.w décalage bitplane x
+00001014  7600                      27      moveq.l #0,d3
+00001016  3605                      28      move.w  d5,d3
+00001018  0643 000F                 29      add.w   #15,d3
+0000101C  E64B                      30      lsr.w   #3,d3
+0000101E  C67C FFFE                 31      and.w   #$fffe,d3   
+00001022  5583                      32      sub.l   #2,d3
+00001024                            33      
+00001024                            34      
+00001024  7400                      35      moveq.l #0,d2
+00001026  3405                      36      move.w  d5,d2
+00001028                            37      ;sub.l  #1,d2
+00001028  E68A                      38      lsr.l   #3,d2
+0000102A  C47C FFFE                 39      and.w   #$fffe,d2   
+0000102E                            40      ;sub.l   #2,d3
+0000102E                            41      
+0000102E  4E75                      42      rts
+00001030                            43  
+00001030  FFFF FFFF                 44      SIMHALT             ; halt simulator
+00001034                            45  
+00001034                            46  * Put variables and constants here
+00001034                            47  
+00001034                            48      END    START        ; last line of source
+
+No errors detected
+No warnings generated
+
+
+SYMBOL TABLE INFORMATION
+Symbol-name         Value
+-------------------------
+START               1000
